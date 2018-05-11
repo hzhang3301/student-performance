@@ -1,0 +1,231 @@
+---
+title: "Predict student performance"
+author: "xw2504"
+date: "5/2/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##load package##
+
+```{r load_package}
+library(klaR)
+library(rminer)
+library(data.table)
+library(plyr)
+library(dplyr)
+library(DT)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(ModelMetrics)
+```
+
+## construct array to save result ##
+
+```{r construct_array_result}
+reg.result=matrix(nrow=3,ncol=5)
+reg.t=matrix(nrow=3,ncol=5)
+colnames(reg.result)=c('NV','NN','SVM','DT','RF')
+rownames(reg.result)=c('A','B','C')
+colnames(reg.t)=c('NV','NN','SVM','DT','RF')
+rownames(reg.t)=c('A','B','C')
+```
+
+## load Portuguese data, transform the character variables into numeric values##
+
+```{r load_data, echo=FALSE}
+data.file<-"/Users/xinwang/Desktop/student/student-por.csv"
+dat=read.table(data.file,sep=";",header=TRUE,stringsAsFactors = FALSE)
+dat$Mjob[which(dat$Mjob=='teacher')]=1
+dat$Mjob[which(dat$Mjob=='health')]=2
+dat$Mjob[which(dat$Mjob=='services')]=3
+dat$Mjob[which(dat$Mjob=='at_home')]=4
+dat$Mjob[which(dat$Mjob=='other')]=5
+dat$Fjob[which(dat$Fjob=='teacher')]=1
+dat$Fjob[which(dat$Fjob=='health')]=2
+dat$Fjob[which(dat$Fjob=='services')]=3
+dat$Fjob[which(dat$Fjob=='at_home')]=4
+dat$Fjob[which(dat$Fjob=='other')]=5
+dat_part1=dat[,c(1:30)]
+dat_part2=dat[,c(31:33)]
+dat_part1[] <- lapply(dat_part1, function(x) as.numeric(as.factor(x)))
+dat_part2[] <- lapply(dat_part2, function(x) as.numeric(x))
+dat=cbind(dat_part1,dat_part2)
+```
+
+##Regression, Input A, Naive Predictor##
+##For input A, the accuracy is based on the matching between G2 and G3##
+```{r reg_A_NV}
+reg.result['A','NV']=rmse(dat$G3,dat$G2)
+A.NV=mining(G3~.,dat,model='naive',Runs=20,task='reg',method=K)
+reg.result['A','NV']=mean(mmetric(A.NV,metric=c("RMSE"))$RMSE1)
+reg.t['A','NV']=0
+```
+
+
+##Regression, Input A, Neural Network Algorithm##
+##Use mining function in rminer to train the model, get the rmse and t-value under 95% confidence interval.
+
+```{r reg_A_NN}
+K=c('kfold',10)
+A.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+A.NN=mining(G3~.,dat,model='mlp',search=A.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(A.NN,'ANN',ascii=TRUE)
+A.m_nn=mmetric(A.NN,metric=c("RMSE"))
+reg.result['A','NN']=mean(A.m_nn$RMSE1)
+reg.t['A','NN']=abs(t.test(A.m_nn$RMSE1)$conf.int[1]-mean(A.m_nn$RMSE1))
+```
+
+##Regression, Input A, SVM Algorithm##
+
+```{r reg_A_SVM}
+A.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+A.SVM=mining(G3~.,dat,model='ksvm',kernel='rbfdot',search=A.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(A.SVM,'ASVM',ascii=TRUE)
+A.m_svm=mmetric(A.SVM,metric=c("RMSE"))
+reg.result['A','SVM']=mean(A.m_svm$RMSE1)
+reg.t['A','SVM']=abs(t.test(A.m_svm$RMSE1)$conf.int[1]-mean(A.m_svm$RMSE1))
+```
+
+##Regression, Input A, Decision Tree Algorithm##
+```{r reg_A_DT}
+A.DT=mining(G3~.,dat,model='dt',Runs=20,task='reg',method=K)
+savemining(A.DT,'ADT',ascii=TRUE)
+A.m_dt=mmetric(A.DT,metric=c("RMSE"))
+reg.result['A','DT']=mean(A.m_dt$RMSE1)
+reg.t['A','DT']=abs(t.test(A.m_dt$RMSE1)$conf.int[1]-mean(A.m_dt$RMSE1))
+```
+
+##Regression, Input A,Random Forest Algorithm##
+```{r reg_A_RF}
+A.RF=mining(G3~.,dat,model='randomforest',Runs=20,task='reg',method=K)
+savemining(A.RF,'ARF',ascii=TRUE)
+A.m_rf=mmetric(A.RF,metric=c("RMSE"))
+reg.result['A','RF']=mean(A.m_rf$RMSE1)
+reg.t['A','RF']=abs(t.test(A.m_rf$RMSE1)$conf.int[1]-mean(A.m_rf$RMSE1))
+```
+
+##Regression, Input B, Naive Predictor##
+##For input B, the accuracy is based on the matching between G1 and G3##
+```{r reg_B_NV}
+reg.result['B','NV']=rmse(dat$G3,dat$G1)
+reg.t['B','NV']=0
+```
+
+##Regression, Input B, Neural Network Algorithm##
+```{r reg_B_NN}
+B.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+B.NN=mining(G3~.-G2,dat,model='mlp',search=B.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(B.NN,'BNN',ascii=TRUE)
+B.m_nn=mmetric(B.NN,metric=c("RMSE"))
+reg.result['B','NN']=mean(B.m_nn$RMSE1)
+reg.t['B','NN']=abs(t.test(B.m_nn$RMSE1)$conf.int[1]-mean(B.m_nn$RMSE1))
+```
+
+##Regression, Input B, SVM algorithm##
+
+```{r reg_B_SVM}
+B.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+B.SVM=mining(G3~.-G2,dat,model='ksvm',kernel='rbfdot',search=B.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(B.SVM,'BSVM',ascii=TRUE)
+B.m_svm=mmetric(B.SVM,metric=c("RMSE"))
+reg.result['B','SVM']=mean(B.m_svm$RMSE1)
+reg.t['B','SVM']=abs(t.test(B.m_svm$RMSE1)$conf.int[1]-mean(B.m_svm$RMSE1))
+```
+
+##Regression, Input B, Decision Tree algorithm##
+
+```{r reg_B_DT}
+B.DT=mining(G3~.-G2,dat,model='dt',Runs=20,task='reg',method=K)
+savemining(B.DT,'BDT',ascii=TRUE)
+B.m_dt=mmetric(B.DT,metric=c("RMSE"))
+reg.result['B','DT']=mean(B.m_dt$RMSE1)
+reg.t['B','DT']=abs(t.test(B.m_dt$RMSE1)$conf.int[1]-mean(B.m_dt$RMSE1))
+```
+
+##Regression, Input B, Random Forest algorithm##
+
+```{r reg_B_RF}
+B.RF=mining(G3~.-G2,dat,model='randomforest',Runs=20,task='reg',method=K)
+savemining(B.RF,'BRF',ascii=TRUE)
+B.m_rf=mmetric(B.RF,metric=c("RMSE"))
+reg.result['B','RF']=mean(B.m_rf$RMSE1)
+reg.t['B','RF']=abs(t.test(B.m_rf$RMSE1)$conf.int[1]-mean(B.m_rf$RMSE1))
+```
+
+##Regression, Input C, Naive Predictor##
+```{r reg_C_NV}
+reg.result['C','NV']=rmse(dat$G3,rep(mean(dat$G3),648))
+C.NV=mining(G3~.-G2-G1,dat,model='naive',Runs=20,task='reg',method=K)
+mean(mmetric(C.NV,metric=c("RMSE"))$RMSE1)
+reg.t['C','NV']=0
+```
+
+##Regression, Input C, Neural Network Algorithm##
+
+```{r reg_C_NN}
+C.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+C.NN=mining(G3~.-G2-G1,dat,model='mlp',search=C.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(C.NN,'CNN',ascii=TRUE)
+C.m_nn=mmetric(C.NN,metric=c("RMSE"))
+reg.result['C','NN']=mean(C.m_nn$RMSE1)
+reg.t['C','NN']=abs(t.test(C.m_nn$RMSE1)$conf.int[1]-mean(C.m_nn$RMSE1))
+```
+
+##Regression, Input C, SVM Algorithm##
+
+```{r reg_C_SVM}
+C.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+C.SVM=mining(G3~.-G2-G1,dat,model='ksvm',kernel='rbfdot',search=C.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(C.SVM,'CSVM',ascii=TRUE)
+C.m_svm=mmetric(C.SVM,metric=c("RMSE"))
+reg.result['C','SVM']=mean(C.m_svm$RMSE1)
+reg.t['C','SVM']=abs(t.test(C.m_svm$RMSE1)$conf.int[1]-mean(C.m_svm$RMSE1))
+```
+
+##Regression, Input C, Decision Tree Algorithm##
+
+```{r reg_C_DT}
+C.DT=mining(G3~.-G2-G1,dat,model='dt',Runs=20,task='reg',method=K)
+savemining(C.DT,'CDT',ascii=TRUE)
+C.m_dt=mmetric(C.DT,metric=c("RMSE"))
+reg.result['C','DT']=mean(C.m_dt$RMSE1)
+reg.t['C','DT']=abs(t.test(C.m_dt$RMSE1)$conf.int[1]-mean(C.m_dt$RMSE1))
+```
+
+##Regression, Input C, Random Forest Algorithm##
+
+```{r reg_C_RF}
+C.RF=mining(G3~.-G2-G1,dat,model='randomforest',Runs=20,task='reg',method=K)
+savemining(C.RF,'CRF',ascii=TRUE)
+C.m_rf=mmetric(C.RF,metric=c("RMSE"))
+reg.result['C','RF']=mean(C.m_rf$RMSE1)
+reg.t['C','RF']=abs(t.test(C.m_rf$RMSE1)$conf.int[1]-mean(C.m_rf$RMSE1))
+```
+
+##save the result into csv##
+```{r reg_save}
+write.csv(reg.result,"/Users/xinwang/Desktop/student/por_reg.csv")
+write.csv(reg.t,"/Users/xinwang/Desktop/student/por_reg_t.csv")
+```
+
+## plot the relative importance for best random forest model##
+
+```{r binary_A_rf_importance}
+model=fit(G3~.-G2-G1,dat,model="randomforest")
+I=Importance(model,dat)
+L=list(runs=1,sen=t(I$imp),sresponses=I$sresponses)
+mgraph(L,graph="IMP",leg=names(dat),col=topo.colors(30),Grid=10,cex=0.45)
+```
+
+##plot the decision tree for best decision tree model##
+
+```{r plot_B_DT}
+dt_B_reg=fit(G3~.-G2,dat,model='dt',task='reg',method=K)
+plot(dt_B_reg@object,uniform=TRUE,branch=0,compress=TRUE)
+text(dt_B_reg@object,xpd=TRUE)
+```

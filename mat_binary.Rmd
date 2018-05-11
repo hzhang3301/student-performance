@@ -1,0 +1,200 @@
+---
+title: "math binary classification"
+output: pdf_notebook
+---
+author: "hz2482"
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# load library
+```{r}
+library('rminer')
+library('ModelMetrics')
+```
+# set up output matrix and cross-validation parameter
+```{r parameter}
+# 10-fold cross-validation
+K=c('kfold',10)
+# output matrix
+bin.result=matrix(nrow=3,ncol=5)
+bin.t=matrix(nrow=3,ncol=5)
+colnames(bin.result)=c('NV','NN','SVM','DT','RF')
+rownames(bin.result)=c('A','B','C')
+colnames(bin.t)=c('NV','NN','SVM','DT','RF')
+rownames(bin.t)=c('A','B','C')
+```
+# A input setup
+# A-naive predictor
+```{r A-NV}
+n=0
+# G3^=G2
+for(i in 1:395)
+{
+  g=0
+  if (data_math$G2[i]>=10)
+    g=1
+  if(data_math$bin[i]==g)
+    n=n+1
+}
+# pcc and t-test
+bin.result['A','NV']=n/395*100
+bin.t['A','NV']=0
+```
+# A-neural networks
+```{r A-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+A.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+A.NN=mining(bin~.-G3-l5,data_math_2,model='mlp',search=A.s_nn,maxit=100,scale='input',task='class',Runs=20,method=K)
+savemining(A.NN,'ANN',ascii=TRUE)
+# pcc and t-test
+A.m_nn=mmetric(A.NN,metric=c("ACC"))
+bin.result['A','NN']=mean(A.m_nn$ACC)
+bin.t['A','NN']=abs(t.test(A.m_nn$ACC)$conf.int[1]-mean(A.m_nn$ACC))
+```
+# A-support vector machine
+```{r A-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+A.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+A.SVM=mining(bin~.-G3-l5,data_math_2,model='ksvm',kernel='rbfdot',search=A.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(A.SVM,'ASVM',ascii=TRUE)
+# pcc and t-test
+A.m_svm=mmetric(A.SVM,metric=c("ACC"))
+bin.result['A','SVM']=mean(A.m_svm$ACC)
+bin.t['A','SVM']=abs(t.test(A.m_svm$ACC)$conf.int[1]-mean(A.m_svm$ACC))
+```
+# A-decision tree
+```{r A-dt}
+# decision tree
+A.DT=mining(bin~.-G3-l5,data_math,model='dt',Runs=20,task='class',method=K)
+savemining(A.DT,'ADT',ascii=TRUE)
+# pcc and t-test
+A.m_dt=mmetric(A.DT,metric=c("ACC"))
+bin.result['A','DT']=mean(A.m_dt$ACC)
+bin.t['A','DT']=abs(t.test(A.m_dt$ACC)$conf.int[1]-mean(A.m_dt$ACC))
+```
+# A-random forest
+```{r A-rf}
+# random forest
+A.RF=mining(bin~.-G3-l5,data_math,model='randomforest',Runs=20,task='class',method=K)
+savemining(A.RF,'ARF',ascii=TRUE)
+# pcc and t-test
+A.m_rf=mmetric(A.RF,metric=c("ACC"))
+bin.result['A','RF']=mean(A.m_rf$ACC)
+bin.t['A','RF']=abs(t.test(A.m_rf$ACC)$conf.int[1]-mean(A.m_rf$ACC))
+```
+# B input setup
+# B-naive predictor
+```{r B-NV}
+n=0
+# G3^=G1
+for(i in 1:395)
+{
+  g=0
+  if (data_math$G1[i]>=10)
+    g=1
+  if(data_math$bin[i]==g)
+    n=n+1
+}
+# pcc and t-test
+bin.result['B','NV']=n/395*100
+bin.t['B','NV']=0
+```
+# B-neural networks
+```{r B-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+B.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+B.NN=mining(bin~.-G3-l5-G2,data_math_2,model='mlp',search=B.s_nn,maxit=100,scale='input',task='class',Runs=20,method=K)
+savemining(B.NN,'BNN',ascii=TRUE)
+# pcc and t-test
+B.m_nn=mmetric(B.NN,metric=c("ACC"))
+bin.result['B','NN']=mean(B.m_nn$ACC)
+bin.t['B','NN']=abs(t.test(B.m_nn$ACC)$conf.int[1]-mean(B.m_nn$ACC))
+```
+# B-support vector machine
+```{r B-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+B.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+B.SVM=mining(bin~.-G3-l5-G2,data_math_2,model='ksvm',kernel='rbfdot',search=B.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(B.SVM,'BSVM',ascii=TRUE)
+# pcc and t-test
+B.m_svm=mmetric(B.SVM,metric=c("ACC"))
+bin.result['B','SVM']=mean(B.m_svm$ACC)
+bin.t['B','SVM']=abs(t.test(B.m_svm$ACC)$conf.int[1]-mean(B.m_svm$ACC))
+```
+# B-decision tree
+```{r B-dt}
+# decision tree
+B.DT=mining(bin~.-G3-l5-G2,data_math,model='dt',Runs=20,task='class',method=K)
+savemining(B.DT,'BDT',ascii=TRUE)
+# pcc and t-test
+B.m_dt=mmetric(B.DT,metric=c("ACC"))
+bin.result['B','DT']=mean(B.m_dt$ACC)
+bin.t['B','DT']=abs(t.test(B.m_svm$ACC)$conf.int[1]-mean(B.m_svm$ACC))
+```
+# B-random forest
+```{r B-rf}
+# random forest
+B.RF=mining(bin~.-G3-l5-G2,data_math,model='randomforest',Runs=20,task='class',method=K)
+savemining(B.RF,'BRF',ascii=TRUE)
+# pcc and t-test
+B.m_rf=mmetric(B.RF,metric=c("ACC"))
+bin.result['B','RF']=mean(B.m_rf$ACC)
+bin.t['B','RF']=abs(t.test(B.m_svm$ACC)$conf.int[1]-mean(B.m_svm$ACC))
+```
+# C input setup
+# C-naive predictor
+```{r C-NV}
+# G3^=average(G3)
+C.NV=mining(bin~.-G3-l5-G2-G1,data_math,model='naive',Runs=20,task='class',method=K)
+# pcc and t-test
+bin.result['C','NV']=mean(mmetric(C.NV,metric=c("ACC"))$ACC)
+bin.t['C','NV']=0
+```
+# C-neural networks
+```{r C-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+C.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+C.NN=mining(bin~.-G3-l5-G2-G1,data_math_2,model='mlp',search=C.s_nn,maxit=100,scale='input',task='class',Runs=20,method=K)
+savemining(C.NN,'CNN',ascii=TRUE)
+# pcc and t-test
+C.m_nn=mmetric(C.NN,metric=c("ACC"))
+bin.result['C','NN']=mean(C.m_nn$ACC)
+bin.t['C','NN']=abs(t.test(C.m_nn$ACC)$conf.int[1]-mean(C.m_nn$ACC))
+```
+# C-support vector machine
+```{r C-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+C.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+C.SVM=mining(bin~.-G3-l5-G2-G1,data_math_2,model='ksvm',kernel='rbfdot',search=C.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(C.SVM,'CSVM',ascii=TRUE)
+# pcc and t-test
+C.m_svm=mmetric(C.SVM,metric=c("ACC"))
+bin.result['C','SVM']=mean(C.m_svm$ACC)
+bin.t['C','SVM']=abs(t.test(C.m_svm$ACC)$conf.int[1]-mean(C.m_svm$ACC))
+```
+# C-decision tree
+```{r C-dt}
+# decision tree
+C.DT=mining(bin~.-G3-l5-G2-G1,data_math,model='dt',Runs=20,task='class',method=K)
+savemining(C.DT,'CDT',ascii=TRUE)
+# pcc and t-test
+C.m_dt=mmetric(C.DT,metric=c("ACC"))
+bin.result['C','DT']=mean(C.m_dt$ACC)
+bin.t['C','DT']=abs(t.test(C.m_dt$ACC)$conf.int[1]-mean(C.m_dt$ACC))
+```
+# C-random forest
+```{r C-rf}
+# random forest
+C.RF=mining(bin~.-G3-l5-G2-G1,data_math,model='randomforest',Runs=20,task='class',method=K)
+savemining(C.RF,'CRF',ascii=TRUE)
+# pcc and t-test
+C.m_rf=mmetric(C.RF,metric=c("ACC"))
+bin.result['C','RF']=mean(C.m_rf$ACC)
+bin.t['C','RF']=abs(t.test(C.m_rf$ACC)$conf.int[1]-mean(C.m_rf$ACC))
+```
+# save result
+```{r save_result}
+write.csv(bin.result,"bin.csv")
+write.csv(bin.t,"bin_t.csv")
+```
+

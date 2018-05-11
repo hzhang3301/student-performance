@@ -1,0 +1,135 @@
+---
+title: "Data Preprocessing"
+output: pdf_document: default
+---
+author: "hz2482"
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#load data
+```{r load_data}
+data_math=read.table("student-mat.csv",sep=";",header=TRUE)
+```
+#binary classification
+```{r binary_classification}
+bin=rep(0,395)
+# transform G3 to binary value
+for (i in 1:395)
+{
+  if (data_math$G3[i]>=10)
+    bin[i]=1
+}
+#bar plot of binary classification
+class_p=length(which(bin==1))
+class_f=length(which(bin==0))
+barplot(c(class_p,class_f),names.arg = c('Pass','Fail'))
+data_math=cbind(data_math,bin)
+```
+#5-level classification
+```{r 5-level_classification}
+l5=rep(0,395)
+# transform G3 to 5 classes
+for (i in 1:395)
+{
+  if (data_math$G3[i]>=16)
+    l5[i]=1
+  else if (data_math$G3[i]>=14)
+    l5[i]=2
+  else if (data_math$G3[i]>=12)
+    l5[i]=3
+  else if (data_math$G3[i]>=10)
+    l5[i]=4
+  else
+    l5[i]=5
+}
+# bar plot
+class_5=rep(0,5)
+class_5[1]=length(which(l5==1))
+class_5[2]=length(which(l5==2))
+class_5[3]=length(which(l5==3))
+class_5[4]=length(which(l5==4))
+class_5[5]=length(which(l5==5))
+barplot(class_5,names.arg = c('I','II','III','IV','V'))
+data_math=cbind(data_math,l5)
+```
+#regression
+```{r regression}
+reg=rep(0,10)
+for (i in 1:10)
+{
+  reg[i]=length(which(data_math$G3>=21/10*(i-1)&data_math$G3<21/10*i))
+}
+# barplot
+barplot(reg,space=c(0,0))
+axis(side=1,at=seq(0,10,10/4),seq(0,20,5))
+```
+# features encoding 1
+```{r encoding1}
+# binary features encoding with logical values
+for(j in 1:35)
+{
+  for(i in 1:395)
+  {
+    if(data_math[i,j]=='yes')
+      data_math[i,j]='1'
+    else if(data_math[i,j]=='no')
+      data_math[i,j]='0'
+  }
+}
+# binary features encoding with non-logical value
+data_math$school[which(data_math$school=='GP')]=0
+data_math$school[which(data_math$school=='MS')]=1
+data_math$sex[which(data_math$sex=='M')]=0
+data_math$sex[which(data_math$sex=='F')]=1
+data_math$address[which(data_math$address=='U')]=0
+data_math$address[which(data_math$address=='R')]=1
+data_math$famsize[which(data_math$famsize=='LE3')]=0
+data_math$famsize[which(data_math$famsize=='GT3')]=1
+data_math$Pstatus[which(data_math$Pstatus=='T')]=0
+data_math$Pstatus[which(data_math$Pstatus=='A')]=1
+# nominal features encoding
+data_math$guardian[which(data_math$guardian=='mother')]=1
+data_math$guardian[which(data_math$guardian=='father')]=2
+data_math$guardian[which(data_math$guardian=='other')]=3
+data_math$reason[which(data_math$reason=='home')]=1
+data_math$reason[which(data_math$reason=='reputation')]=2
+data_math$reason[which(data_math$reason=='course')]=3
+data_math$reason[which(data_math$reason=='other')]=4
+data_math$Mjob[which(data_math$Mjob=='teacher')]=1
+data_math$Mjob[which(data_math$Mjob=='health')]=2
+data_math$Mjob[which(data_math$Mjob=='services')]=3
+data_math$Mjob[which(data_math$Mjob=='at_home')]=4
+data_math$Mjob[which(data_math$Mjob=='other')]=5
+data_math$Fjob[which(data_math$Fjob=='teacher')]=1
+data_math$Fjob[which(data_math$Fjob=='health')]=2
+data_math$Fjob[which(data_math$Fjob=='services')]=3
+data_math$Fjob[which(data_math$Fjob=='at_home')]=4
+data_math$Fjob[which(data_math$Fjob=='other')]=5
+for(j in 1:35)
+{
+  for(i in 1:395)
+  {
+    data_math[i,j]=as.numeric(data_math[i,j])
+  }
+}
+```
+# features encoding 2
+```{r encoding2}
+# nominal features 1-of-C encoding 
+nominal=matrix(0,nrow=395,ncol=17)
+colnames(nominal)=c('guardian1','guardian2','guardian3','reason1','reason2','reason3','reason4','Mjob1','Mjob2','Mjob3','Mjob4','Mjob5','Fjob1','Fjob2','Fjob3','Fjob4','Fjob5')
+for(i in 1:395)
+{
+  nominal[i,paste("guardian",data_math$guardian[i],sep="")]=1
+  nominal[i,paste("reason",data_math$reason[i],sep="")]=1
+  nominal[i,paste("Mjob",data_math$Mjob[i],sep="")]=1
+  nominal[i,paste("Fjob",data_math$Fjob[i],sep="")]=1
+}
+data_math_2=cbind(subset(data_math, select=-c(guardian,reason,Mjob,Fjob)),nominal)
+```
+# save data
+```{r}
+write.csv(data_math,"data_math.csv",row.names = FALSE)
+write.csv(data_math_2,"data_math_2.csv",row.names = FALSE)
+```
+

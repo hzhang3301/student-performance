@@ -1,0 +1,42 @@
+---
+title: "math graph"
+output: pdf_notebook
+---
+author: "hz2482"
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# load library
+```{r}
+library('rminer')
+library('ISLR')
+```
+# tree base graph
+```{r }
+# preprocessing
+# data_l5=subset(data_math, select=-c(G3,bin))
+data_bin=subset(data_math, select=-c(G3,l5))
+# data_reg=subset(data_math, select=-c(G2,l5,bin))
+for (i in 1:31)
+{
+  # data_l5[,i]=as.numeric(data_l5[,i])
+  data_bin[,i]=as.numeric(data_bin[,i])
+  #data_reg[,i]=as.numeric(data_reg[,i])
+}
+# random forest model
+m=fit(G3~.,data_reg,model='randomforest',task='reg')
+# relevant importance
+I=Importance(m,data_reg)
+L=list(runs=1,sen=t(I$imp),sresponses=I$sresponses)
+mgraph(L,graph="IMP",leg=names(data_reg),col=topo.colors(30),Grid=10,cex=0.45)
+
+# decision tree model
+mm=fit(bin~.,data_bin,model='dt',task='class',method=K)
+plot(mm@object,uniform=TRUE,branch=0,compress=TRUE)
+text(mm@object,xpd=TRUE)
+# decision tree graph
+dat=as.matrix(data_reg)
+pairs(cbind(data_reg$G1,data_reg$G2,data_reg$G3))
+
+```
+

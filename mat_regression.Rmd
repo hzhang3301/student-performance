@@ -1,0 +1,185 @@
+---
+title: "math regression"
+output: pdf_notebook
+---
+author: "hz2482"
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# load library
+```{r}
+library('rminer')
+library('ModelMetrics')
+```
+# set up output matrix and cross-validation parameter
+```{r parameter}
+# 10-fold cross-validation
+K=c('kfold',10)
+# output matrix
+reg.result=matrix(nrow=3,ncol=5)
+reg.t=matrix(nrow=3,ncol=5)
+colnames(reg.result)=c('NV','NN','SVM','DT','RF')
+rownames(reg.result)=c('A','B','C')
+colnames(reg.t)=c('NV','NN','SVM','DT','RF')
+rownames(reg.t)=c('A','B','C')
+```
+# A input setup
+# A-naive predictor
+```{r A-NV}
+# G3^=G2
+reg.result['A','NV']=rmse(data_math$G3,data_math$G2)
+A.NV=mining(G3~.-bin-l5,data_math,model='naive',Runs=20,task='reg',method=K)
+# rmse and t-test
+mean(mmetric(A.NV,metric=c("RMSE"))$RMSE1)
+reg.t['A','NV']=0
+```
+# A-neural networks
+```{r A-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+A.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+A.NN=mining(G3~.-bin-l5,data_math_2,model='mlp',search=A.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(A.NN,'ANN',ascii=TRUE)
+# rmse and t-test
+A.m_nn=mmetric(A.NN,metric=c("RMSE"))
+reg.result['A','NN']=mean(A.m_nn$RMSE1)
+reg.t['A','NN']=abs(t.test(A.m_nn$RMSE1)$conf.int[1]-mean(A.m_nn$RMSE1))
+```
+# A-support vector machine
+```{r A-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+A.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+A.SVM=mining(G3~.-bin-l5,data_math_2,model='ksvm',kernel='rbfdot',search=A.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(A.SVM,'ASVM',ascii=TRUE)
+# rmse and t-test
+A.m_svm=mmetric(A.SVM,metric=c("RMSE"))
+reg.result['A','SVM']=mean(A.m_svm$RMSE1)
+reg.t['A','SVM']=abs(t.test(A.m_svm$RMSE1)$conf.int[1]-mean(A.m_svm$RMSE1))
+```
+# A-decision tree
+```{r A-dt}
+# decision tree
+A.DT=mining(G3~.-bin-l5,data_math,model='dt',Runs=20,task='reg',method=K)
+savemining(A.DT,'ADT',ascii=TRUE)
+# rmse and t-test
+A.m_dt=mmetric(A.DT,metric=c("RMSE"))
+reg.result['A','DT']=mean(A.m_dt$RMSE1)
+reg.t['A','DT']=abs(t.test(A.m_dt$RMSE1)$conf.int[1]-mean(A.m_dt$RMSE1))
+```
+# A-random forest
+```{r A-rf}
+# random forest
+A.RF=mining(G3~.-bin-l5,data_math,model='randomforest',Runs=20,task='reg',method=K)
+savemining(A.RF,'ARF',ascii=TRUE)
+# rmse and t-test
+A.m_rf=mmetric(A.RF,metric=c("RMSE"))
+reg.result['A','RF']=mean(A.m_rf$RMSE1)
+reg.t['A','RF']=abs(t.test(A.m_rf$RMSE1)$conf.int[1]-mean(A.m_rf$RMSE1))
+```
+# B input setup
+# B-naive predictor
+```{r B-NV}
+# G3^=G1
+reg.result['B','NV']=rmse(data_math$G3,data_math$G1)
+# rmse and t-test
+reg.t['B','NV']=0
+```
+# B-neural networks
+```{r B-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+B.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+B.NN=mining(G3~.-bin-l5-G2,data_math_2,model='mlp',search=B.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(B.NN,'BNN',ascii=TRUE)
+# rmse and t-test
+B.m_nn=mmetric(B.NN,metric=c("RMSE"))
+reg.result['B','NN']=mean(B.m_nn$RMSE1)
+reg.t['B','NN']=abs(t.test(B.m_nn$RMSE1)$conf.int[1]-mean(B.m_nn$RMSE1))
+```
+# B-support vector machine
+```{r B-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+B.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+B.SVM=mining(G3~.-bin-l5-G2,data_math_2,model='ksvm',kernel='rbfdot',search=B.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(B.SVM,'BSVM',ascii=TRUE)
+# rmse and t-test
+B.m_svm=mmetric(B.SVM,metric=c("RMSE"))
+reg.result['B','SVM']=mean(B.m_svm$RMSE1)
+reg.t['B','SVM']=abs(t.test(B.m_svm$RMSE1)$conf.int[1]-mean(B.m_svm$RMSE1))
+```
+# B-decision tree
+```{r B-dt}
+# decision tree
+B.DT=mining(G3~.-bin-l5-G2,data_math,model='dt',Runs=20,task='reg',method=K)
+savemining(B.DT,'BDT',ascii=TRUE)
+# rmse and t-test
+B.m_dt=mmetric(B.DT,metric=c("RMSE"))
+reg.result['B','DT']=mean(B.m_dt$RMSE1)
+reg.t['B','DT']=abs(t.test(B.m_svm$RMSE1)$conf.int[1]-mean(B.m_svm$RMSE1))
+```
+# B-random forest
+```{r B-rf}
+# random forest
+B.RF=mining(G3~.-bin-l5-G2,data_math,model='randomforest',Runs=20,task='reg',method=K)
+savemining(B.RF,'BRF',ascii=TRUE)
+# rmse and t-test
+B.m_rf=mmetric(B.RF,metric=c("RMSE"))
+reg.result['B','RF']=mean(B.m_rf$RMSE1)
+reg.t['B','RF']=abs(t.test(B.m_svm$RMSE1)$conf.int[1]-mean(B.m_svm$RMSE1))
+```
+# C input setup
+# C-naive predictor
+```{r C-NV}
+# G3^=average(G3)
+reg.result['C','NV']=rmse(data_math$G3,rep(mean(data_math$G3),395))
+C.NV=mining(G3~.-bin-l5-G2-G1,data_math,model='naive',Runs=20,task='reg',method=K)
+# rmse and t-test
+mean(mmetric(C.NV,metric=c("RMSE"))$RMSE1)
+reg.t['C','NV']=0
+```
+# C-neural networks
+```{r C-NN}
+# neural networks with 100 epochs, one layer and 0, 2, 4, 6, 8 nodes
+C.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+C.NN=mining(G3~.-bin-l5-G2-G1,data_math_2,model='mlp',search=C.s_nn,maxit=100,scale='input',task='reg',Runs=20,method=K)
+savemining(C.NN,'CNN',ascii=TRUE)
+# rmse and t-test
+C.m_nn=mmetric(C.NN,metric=c("RMSE"))
+reg.result['C','NN']=mean(C.m_nn$RMSE1)
+reg.t['C','NN']=abs(t.test(C.m_nn$RMSE1)$conf.int[1]-mean(C.m_nn$RMSE1))
+```
+# C-support vector machine
+```{r C-SVM}
+# support vector machine with gaussian kernel and hyper paremeter -9,-7,-5,-3,-1
+C.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+C.SVM=mining(G3~.-bin-l5-G2-G1,data_math_2,model='ksvm',kernel='rbfdot',search=C.s_svm,scale='input',task='reg',Runs=20,method=K)
+savemining(C.SVM,'CSVM',ascii=TRUE)
+# rmse and t-test
+C.m_svm=mmetric(C.SVM,metric=c("RMSE"))
+reg.result['C','SVM']=mean(C.m_svm$RMSE1)
+reg.t['C','SVM']=abs(t.test(C.m_svm$RMSE1)$conf.int[1]-mean(C.m_svm$RMSE1))
+```
+# C-decision tree
+```{r C-dt}
+# decision tree
+C.DT=mining(G3~.-bin-l5-G2-G1,data_math,model='dt',Runs=20,task='reg',method=K)
+savemining(C.DT,'CDT',ascii=TRUE)
+# rmse and t-test
+C.m_dt=mmetric(C.DT,metric=c("RMSE"))
+reg.result['C','DT']=mean(C.m_dt$RMSE1)
+reg.t['C','DT']=abs(t.test(C.m_dt$RMSE1)$conf.int[1]-mean(C.m_dt$RMSE1))
+```
+# C-random forest
+```{r C-rf}
+# random forest
+C.RF=mining(G3~.-bin-l5-G2-G1,data_math,model='randomforest',Runs=20,task='reg',method=K)
+savemining(C.RF,'CRF',ascii=TRUE)
+# rmse and t-test
+C.m_rf=mmetric(C.RF,metric=c("RMSE"))
+reg.result['C','RF']=mean(C.m_rf$RMSE1)
+reg.t['C','RF']=abs(t.test(C.m_rf$RMSE1)$conf.int[1]-mean(C.m_rf$RMSE1))
+```
+# save result
+```{r save_result}
+write.csv(reg.result,"reg.csv")
+write.csv(reg.t,"reg_t.csv")
+```
+

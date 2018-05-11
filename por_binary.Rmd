@@ -1,0 +1,331 @@
+title: "Predict student performance"
+author: "xw2504"
+date: "5/2/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r load_package}
+library(klaR)
+library(rminer)
+library(data.table)
+library(plyr)
+library(dplyr)
+library(DT)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(ModelMetrics)
+```
+
+##constuct two arrays to record the accuracy and t-values ##
+```{r record}
+bin.result=matrix(nrow=3,ncol=5)
+bin.t=matrix(nrow=3,ncol=5)
+colnames(bin.result)=c('NV','NN','SVM','DT','RF')
+rownames(bin.result)=c('A','B','C')
+colnames(bin.t)=c('NV','NN','SVM','DT','RF')
+rownames(bin.t)=c('A','B','C')
+```
+
+##load the Portuguese data, transfer the character variables into numeric ones, prepared for modeling.##
+```{r load_data, echo=FALSE}
+data.file<-"/Users/xinwang/Desktop/student/student-por.csv"
+dat=read.table(data.file,sep=";",header=TRUE,stringsAsFactors = FALSE)
+dat$Mjob[which(dat$Mjob=='teacher')]=1
+dat$Mjob[which(dat$Mjob=='health')]=2
+dat$Mjob[which(dat$Mjob=='services')]=3
+dat$Mjob[which(dat$Mjob=='at_home')]=4
+dat$Mjob[which(dat$Mjob=='other')]=5
+dat$Fjob[which(dat$Fjob=='teacher')]=1
+dat$Fjob[which(dat$Fjob=='health')]=2
+dat$Fjob[which(dat$Fjob=='services')]=3
+dat$Fjob[which(dat$Fjob=='at_home')]=4
+dat$Fjob[which(dat$Fjob=='other')]=5
+dat_part1=dat[,c(1:30)]
+dat_part2=dat[,c(31:33)]
+dat_part1[] <- lapply(dat_part1, function(x) as.numeric(as.factor(x)))
+dat_part2[] <- lapply(dat_part2, function(x) as.numeric(x))
+dat=cbind(dat_part1,dat_part2)
+```
+
+## Make the data for binary classification, tranform G3 into pass or fail##
+```{r binary_data}
+dat_temp=copy(dat)
+dat_temp$G3=cut(dat_temp$G3,c(-1,10,20),c("fail","pass"))
+dat_binary=dat_temp
+```
+
+## Make the data for 5-Level classification, tranform G3 into 'I','II','III','IV' or 'V'##
+```{r 5level_data}
+dat_temp=copy(dat)
+dat_temp$G3=cut(dat_temp$G3,c(-1,9,11,13,15,20),c("V","IV","III","II","I"))
+dat_5level=dat_temp
+```
+
+##Plot the binary G3,5_Level G3 and original G3 for comparison##
+```{r plot }
+par(mfrow=c(1,3))
+barplot(table(dat_binary$G3),ylim=c(0,500))
+level_G3= factor(dat_5level$G3, levels=c("I", "II", "III","IV","V"))
+barplot(table(level_G3),ylim=c(0,200))
+barplot(table(dat$G3),xaxt="n",ylim=c(0,150))
+axis(side=1,at=c(0,5,10,15,20))
+```
+
+##Binary classification, Input A, Naive Predictor algorithm ##
+##For input A, accuaracy of NV is based on the match rate between G2 and G3##
+```{r binary_A_NV}
+dat_binary_nv=copy(dat_binary)
+dat_binary_nv$G2=cut(dat_binary_nv$G2,c(-1,10,20),c("fail","pass"))
+dat_equal <- dat_binary_nv[dat_binary_nv$G3==dat_binary_nv$G2,]
+bin.result['A','NV']=nrow(dat_equal)*100/nrow(dat_binary_nv)
+bin.t['A','NV']=0
+```
+
+##Binary classification, Input A, Neural Network algorithm ##
+##Binary classification, Input A, Random Forest algorithm ##
+## use "mining" function under "rminer" package to train the model, grid search the best parameters, get its accuracy rate and the t-value under 95% confidence intervals. ##
+
+```{r binary_A_NN}
+K=c('kfold',10)
+A.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+A.NN=mining(G3~.,dat_binary,model='mlp',search=A.s_nn,maxit=100,scale='input',task='class',
+          Runs=20,method=K)
+savemining(A.NN,'ANN',ascii=TRUE)
+A.m_nn=mmetric(A.NN,metric=c("ACC"))
+bin.result['A','NN']=mean(A.m_nn$ACC)
+bin.t['A','NN']=abs(t.test(A.m_nn$ACC)$conf.int[1]-mean(A.m_nn$ACC))
+```
+
+##Binary classification, Input A, SVM algorithm ##
+
+```{r binary_A_SVM}
+A.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-  7,-5,-3,-1)),method=K,convex=0)
+A.SVM=mining(G3~.,dat_binary,model='ksvm',kernel='rbfdot',search=A.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(A.SVM,'ASVM',ascii=TRUE)
+A.m_svm=mmetric(A.SVM,metric=c("ACC"))
+bin.result['A','SVM']=mean(A.m_svm$ACC)
+bin.t['A','SVM']=abs(t.test(A.m_svm$ACC)$conf.int[1]-mean(A.m_svm$ACC))
+```
+
+##Binary classification, Input A, Decision Tree algorithm ##
+
+```{r binary_A_DT}
+A.DT=mining(G3~.,dat_binary,model='dt',Runs=20,task='class',method=K)
+savemining(A.DT,'ADT',ascii=TRUE)
+A.m_dt=mmetric(A.DT,metric=c("ACC"))
+bin.result['A','DT']=mean(A.m_dt$ACC)
+bin.t['A','DT']=abs(t.test(A.m_dt$ACC)$conf.int[1]-mean(A.m_dt$ACC))
+bin.result
+```
+
+##Binary classification, Input A, Random Forest algorithm ##
+
+```{r binary_A_RF}
+A.RF=mining(G3~.,dat_binary,model='randomforest',Runs=20,task='class',method=K)
+savemining(A.RF,'ARF',ascii=TRUE)
+A.m_rf=mmetric(A.RF,metric=c("ACC"))
+bin.result['A','RF']=mean(A.m_rf$ACC)
+bin.t['A','RF']=abs(t.test(A.m_rf$ACC)$conf.int[1]-mean(A.m_rf$ACC))
+```
+
+##Binary classification, Input B, Naive Predictor ##
+## for input B, the accuracy rate depends on the match between G1 and G3 ##
+
+```{r binary_B_NV}
+dat_binary_nv=copy(dat_binary)
+dat_binary_nv$G1=cut(dat_binary_nv$G1,c(-1,10,20),c("fail","pass"))
+dat_equal <- dat_binary_nv[dat_binary_nv$G3==dat_binary_nv$G1,]
+bin.result['B','NV']=nrow(dat_equal)*100/nrow(dat_binary_nv)
+bin.t['B','NV']=0
+bin.result
+```
+
+##Binary classification, Input B, Neural Network algorithm ##
+
+```{r binary_B_NN}
+K=c('kfold',10)
+B.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+B.NN=mining(G3~.-G2,dat_binary,model='mlp',search=B.s_nn,maxit=100,scale='input',task='class',Runs=20,method=K)
+savemining(B.NN,'BNN',ascii=TRUE)
+B.m_nn=mmetric(B.NN,metric=c("ACC"))
+bin.result['B','NN']=mean(B.m_nn$ACC)
+bin.t['B','NN']=abs(t.test(B.m_nn$ACC)$conf.int[1]-mean(B.m_nn$ACC))
+```
+
+##Binary classification, Input B, SVM algorithm ##
+
+```{r binary_B_SVM}
+B.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+B.SVM=mining(G3~.-G2,dat_binary,model='ksvm',kernel='rbfdot',search=B.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(B.SVM,'BSVM',ascii=TRUE)
+B.m_svm=mmetric(B.SVM,metric=c("ACC"))
+bin.result['B','SVM']=mean(B.m_svm$ACC)
+bin.t['B','SVM']=abs(t.test(B.m_svm$ACC)$conf.int[1]-mean(B.m_svm$ACC))
+```
+
+##Binary classification, Input B, Decision Tree algorithm ##
+
+```{r binary_B_DT}
+B.DT=mining(G3~.-G2,dat_binary,model='dt',Runs=20,task='class',method=K)
+savemining(B.DT,'BDT',ascii=TRUE)
+B.m_dt=mmetric(B.DT,metric=c("ACC"))
+bin.result['B','DT']=mean(B.m_dt$ACC)
+bin.t['B','DT']=abs(t.test(B.m_dt$ACC)$conf.int[1]-mean(B.m_dt$ACC))
+```
+
+##Binary classification, Input B, Random Forest algorithm ##
+
+```{r binary_B_RF}
+B.RF=mining(G3~.-G2,dat_binary,model='randomforest',Runs=20,task='class',method=K)
+savemining(B.RF,'BRF',ascii=TRUE)
+B.m_rf=mmetric(B.RF,metric=c("ACC"))
+bin.result['B','RF']=mean(B.m_rf$ACC)
+bin.t['B','RF']=abs(t.test(B.m_rf$ACC)$conf.int[1]-mean(B.m_rf$ACC))
+```
+
+##Binary classification, Input C, Naive Bayes algorithm ##
+
+```{r binary_C_NV}
+C.NV=mining(G3~.-G2-G1,dat_binary,model='naive',Runs=20,task='class',method=K)
+bin.result['C','NV']=mean(mmetric(C.NV,metric=c("ACC"))$ACC)
+bin.t['C','NV']=0
+```
+
+##Binary classification, Input C, Neural Network algorithm ##
+
+```{r binary_C_NN}
+K=c('kfold',10)
+C.s_nn=list(smethod='grid',search=list(size=seq(0,8,2)),method=K,convex=0)
+C.NN=mining(G3~.-G2-G1,dat_binary,model='mlp',search=C.s_nn,maxit=100,scale='input',task='class',Runs=20,method=K)
+savemining(C.NN,'CNN',ascii=TRUE)
+C.m_nn=mmetric(C.NN,metric=c("ACC"))
+bin.result['C','NN']=mean(C.m_nn$ACC)
+bin.t['C','NN']=abs(t.test(C.m_nn$ACC)$conf.int[1]-mean(C.m_nn$ACC))
+```
+
+##Binary classification, Input C, SVM algorithm ##
+
+```{r binary_C_SVM}
+C.s_svm=list(smethod='grid',search=list(sigma=2^c(-9,-7,-5,-3,-1)),method=K,convex=0)
+C.SVM=mining(G3~.-G2-G1,dat_binary,model='ksvm',kernel='rbfdot',search=C.s_svm,scale='input',task='class',Runs=20,method=K)
+savemining(C.SVM,'CSVM',ascii=TRUE)
+C.m_svm=mmetric(C.SVM,metric=c("ACC"))
+bin.result['C','SVM']=mean(C.m_svm$ACC)
+bin.t['C','SVM']=abs(t.test(C.m_svm$ACC)$conf.int[1]-mean(C.m_svm$ACC))
+```
+
+##Binary classification, Input C, Decision Tree algorithm ##
+
+```{r binary_C_DT}
+C.DT=mining(G3~.-G2-G1,dat_binary,model='dt',Runs=20,task='class',method=K)
+savemining(C.DT,'CDT',ascii=TRUE)
+C.m_dt=mmetric(C.DT,metric=c("ACC"))
+bin.result['C','DT']=mean(C.m_dt$ACC)
+bin.t['C','DT']=abs(t.test(C.m_dt$ACC)$conf.int[1]-mean(C.m_dt$ACC))
+```
+
+##Binary classification, Input C, Random Forest algorithm ##
+
+```{r binary_C_RF}
+C.RF=mining(G3~.-G2-G1,dat_binary,model='randomforest',Runs=20,task='class',method=K)
+savemining(C.RF,'CRF',ascii=TRUE)
+C.m_rf=mmetric(C.RF,metric=c("ACC"))
+bin.result['C','RF']=mean(C.m_rf$ACC)
+bin.t['C','RF']=abs(t.test(C.m_rf$ACC)$conf.int[1]-mean(C.m_rf$ACC))
+```
+
+##show all the PCC and t-value result##
+```{r result}
+bin.result
+bin.t
+```
+
+##save it to csv##
+```{r write}
+write.csv(bin.result,"/Users/xinwang/Desktop/student/por_bin.csv")
+write.csv(bin.t,"/Users/xinwang/Desktop/student/por_bin_t.csv")
+```
+
+##XGBoost--new methods on Binary classification,Input A#
+
+```{r binary_A_new_method_xgboost}
+xgboost_A=mining(G3~.,dat_binary,model='xgboost',Runs=20,task='class',method=K)
+savemining(xgboost_A,'xgboost_A',ascii=TRUE)
+xgboost.A=mmetric(xgboost_A,metric=c("ACC"))
+print(mean(xgboost.A$ACC))
+print(abs(t.test(xgboost.A$ACC)$conf.int[1]-mean(xgboost.A$ACC)))
+```
+
+##XGBoost--new methods on Binary classification,Input B#
+
+```{r binary_B_new_method_xgboost}
+xgboost_A=mining(G3~.-G2,dat_binary,model='xgboost',Runs=20,task='class',method=K)
+savemining(xgboost_A,'xgboost_A',ascii=TRUE)
+xgboost.A=mmetric(xgboost_A,metric=c("ACC"))
+print(mean(xgboost.A$ACC))
+print(abs(t.test(xgboost.A$ACC)$conf.int[1]-mean(xgboost.A$ACC)))
+```
+
+##XGBoost--new methods on Binary classification,Input C#
+
+```{r binary_C_new_method_xgboost}
+xgboost_A=mining(G3~.-G2-G1,dat_binary,model='xgboost',Runs=20,task='class',method=K)
+savemining(xgboost_A,'xgboost_A',ascii=TRUE)
+xgboost.A=mmetric(xgboost_A,metric=c("ACC"))
+print(mean(xgboost.A$ACC))
+print(abs(t.test(xgboost.A$ACC)$conf.int[1]-mean(xgboost.A$ACC)))
+```
+
+##Plot the relative importance for the best random forset models in each input##
+```{r binary_A_rf_importance}
+model=fit(G3~.,dat_binary,model="randomforest")
+I=Importance(model,dat_binary)
+L=list(runs=1,sen=t(I$imp),sresponses=I$sresponses)
+mgraph(L,graph="IMP",leg=names(dat_binary),col=topo.colors(30),Grid=10,cex=0.45)
+```
+
+
+```{r binary_B_rf_importance}
+model=fit(G3~.-G2,dat_binary,model="randomforest")
+I=Importance(model,dat_binary)
+L=list(runs=1,sen=t(I$imp),sresponses=I$sresponses)
+mgraph(L,graph="IMP",leg=names(dat_binary),col=topo.colors(30),Grid=10,cex=0.45)
+```
+
+##Plot the Decision Tree for the best DT models##
+```{r plot_C_DT}
+dt_C=fit(G3~.-G2-G1,dat_binary,model='dt',task='class',method=K)
+plot(dt_C@object,uniform=TRUE,branch=0,compress=TRUE)
+text(dt_C@object,xpd=TRUE)
+```
+
+```{r plot_C_DT}
+dt_C=fit(G3~.-G2-G1,dat_binary,model='ctree',task='class')
+jpeg('C_DT_binary.jpg')
+plot(dt_C@object)
+dev.off()
+```
+
+##Apply PCA on Decision Tree model##
+```{r new_method_pca}
+prComp <- prcomp(dat[, -33])
+summary(prComp)
+```
+
+
+```{r pca_DT}
+preProc <- preProcess(dat[, -33], method="pca", pcaComp=19)
+dat_pca <- predict(preProc, dat[, -33])  
+dat_pca=cbind(dat_pca,dat_binary$G3)
+setnames(dat_pca,"dat_binary$G3","G3")
+modFitPC <- train(G3~., method="rf", data=dat_pca)
+print(modFitPC)
+```
+
+
